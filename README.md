@@ -1,9 +1,10 @@
 docker-openldap
 ===============
 
-The image is based on Debian stable ("jessie" at the moment). The Dockerfile is 
-inspired by [cnry/openldap](https://registry.hub.docker.com/u/cnry/openldap/), 
-but as said before, running a stable Debian and be a little less verbose, but 
+The image is based on Debian stable ("jessie" at the moment). The Dockerfile is
+inspired by [dinkel/openldap](https://registry.hub.docker.com/u/dinkel/openldap/),
+itself inspired by [cnry/openldap](https://registry.hub.docker.com/u/cnry/openldap/),
+but as said before, running a stable Debian and be a little less verbose, but
 more complete in the configuration.
 
 NOTE: On purpose, there is no secured channel (TLS/SSL), because I believe that
@@ -19,7 +20,7 @@ not the recommended way - see below):
     docker run -d -p 389:389 -e SLAPD_PASSWORD=mysecretpassword -e SLAPD_DOMAIN=ldap.example.org dinkel/openldap
 
 To get the full potential this image offers, one should first create a data-only
-container or (named) volumes (see "Data persistence" below) and start the 
+container or (named) volumes (see "Data persistence" below) and start the
 OpenLDAP daemon in one of these ways:
 
     docker run -d --volumes-from your-data-container [CONFIG] dinkel/openldap
@@ -76,7 +77,7 @@ prefix used in `modules/ppolicy.ldif` for the `olcPPolicyDefault` attribute.  Th
 value used for `olcPPolicyDefault` is derived from `$SLAPD_PPOLICY_DN_PREFIX,(dc
 component parts from $SLAPD_DOMAIN)`.
 
-After loading the module, you have to load a default password policy. The 
+After loading the module, you have to load a default password policy. The
 contents of `default-policy.ldif` should look something like this:
 
 ```
@@ -112,7 +113,7 @@ pwdSafeModify: FALSE
 See the [docs](http://www.zytrax.com/books/ldap/ch6/ppolicy.html) for descriptions
 on the available attributes and what they mean.
 
-Assuming you are on a host that has the client side tools installed (maybe you 
+Assuming you are on a host that has the client side tools installed (maybe you
 have to change the hostname as well), run:
 
     ldapadd -h localhost -x -c -D 'cn=admin,dc=ldap,dc=example,dc=org' -w [$SLAPD_PASSWORD] -f default-policy.ldif
@@ -122,14 +123,14 @@ or use the prepopulation capability described below.
 Prepopulate with data
 ---------------------
 
-There are some use cases where it is desired to prepopulate the database with 
-some data before launching the container. In order to do that, one can mount a 
-host directory as a data volume in `/etc/ldap.dist/prepopulate`. Each LDIF file 
+There are some use cases where it is desired to prepopulate the database with
+some data before launching the container. In order to do that, one can mount a
+host directory as a data volume in `/etc/ldap.dist/prepopulate`. Each LDIF file
 is run through `slapadd` in alphabetical order. E.g.
 
     docker run -d --volume /path/to/dir/with/ldif-files:/etc/ldap.dist/prepopulate [CONFIG] dinkel/openldap
 
-Please note that the prepopulation files are only processed on the containers 
+Please note that the prepopulation files are only processed on the containers
 first run (a.k.a. as long as there is no data in the database).
 
 Data persistence
