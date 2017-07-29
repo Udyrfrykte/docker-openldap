@@ -4,14 +4,16 @@
 # slapd is absurdly high. See https://github.com/docker/docker/issues/8231
 ulimit -n 8192
 
-
+set -x
 set -e
 
 SLAPD_FORCE_RECONFIGURE="${SLAPD_FORCE_RECONFIGURE:-false}"
 
 first_run=true
 
-if [[ -f "/var/lib/ldap/DB_CONFIG" ]]; then 
+ls -la /var/lib/ldap
+
+if [[ -f "/var/lib/ldap/POPULATED" ]]; then
     first_run=false
 fi
 
@@ -34,15 +36,15 @@ if [[ ! -d /etc/ldap/slapd.d || "$SLAPD_FORCE_RECONFIGURE" == "true" ]]; then
     cp -r /etc/ldap.dist/* /etc/ldap
 
     cat <<-EOF | debconf-set-selections
-        slapd slapd/no_configuration boolean false
-        slapd slapd/password1 password $SLAPD_PASSWORD
-        slapd slapd/password2 password $SLAPD_PASSWORD
-        slapd shared/organization string $SLAPD_ORGANIZATION
-        slapd slapd/domain string $SLAPD_DOMAIN
-        slapd slapd/backend select HDB
-        slapd slapd/allow_ldap_v2 boolean false
-        slapd slapd/purge_database boolean false
-        slapd slapd/move_old_database boolean true
+	slapd slapd/no_configuration boolean false
+	slapd slapd/password1 password $SLAPD_PASSWORD
+	slapd slapd/password2 password $SLAPD_PASSWORD
+	slapd shared/organization string $SLAPD_ORGANIZATION
+	slapd slapd/domain string $SLAPD_DOMAIN
+	slapd slapd/backend select MDB
+	slapd slapd/allow_ldap_v2 boolean false
+	slapd slapd/purge_database boolean false
+	slapd slapd/move_old_database boolean true
 EOF
 
     dpkg-reconfigure -f noninteractive slapd >/dev/null 2>&1
@@ -59,17 +61,22 @@ EOF
 
     sed -i "s/^#BASE.*/${base_string}/g" /etc/ldap/ldap.conf
 
+    slapcat -n0 -F /etc/ldap/slapd.d -l /tmp/config.ldif
+
+    sed -i 's/\(objectClass: olcGlobal\)/\1\nolcPasswordCryptSaltFormat: $6$%.16s/g' /tmp/config.ldif
+    sed -i 's/\(olcDatabase: {-1}frontend\)/\1\nolcPasswordHash: {CRYPT}/g' /tmp/config.ldif
+
     if [[ -n "$SLAPD_CONFIG_PASSWORD" ]]; then
         password_hash=`slappasswd -s "${SLAPD_CONFIG_PASSWORD}"`
 
         sed_safe_password_hash=${password_hash//\//\\\/}
 
-        slapcat -n0 -F /etc/ldap/slapd.d -l /tmp/config.ldif
         sed -i "s/\(olcRootDN: cn=admin,cn=config\)/\1\nolcRootPW: ${sed_safe_password_hash}/g" /tmp/config.ldif
-        rm -rf /etc/ldap/slapd.d/*
-        slapadd -n0 -F /etc/ldap/slapd.d -l /tmp/config.ldif
-        rm /tmp/config.ldif
     fi
+
+    rm -rf /etc/ldap/slapd.d/*
+    slapadd -n0 -F /etc/ldap/slapd.d -l /tmp/config.ldif
+    rm /tmp/config.ldif
 
     if [[ -n "$SLAPD_ADDITIONAL_SCHEMAS" ]]; then
         IFS=","; declare -a schemas=($SLAPD_ADDITIONAL_SCHEMAS); unset IFS
@@ -105,12 +112,14 @@ else
 fi
 
 if [[ "$first_run" == "true" ]]; then
-    if [[ -d "/etc/ldap/prepopulate" ]]; then 
+    if [[ -d "/etc/ldap/prepopulate" ]]; then
         for file in `ls /etc/ldap/prepopulate/*.ldif`; do
             slapadd -F /etc/ldap/slapd.d -l "$file"
         done
     fi
 fi
+
+touch /var/lib/ldap/POPULATED
 
 chown -R openldap:openldap /var/lib/ldap/ /var/run/slapd/
 
