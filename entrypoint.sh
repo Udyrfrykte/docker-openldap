@@ -90,15 +90,16 @@ EOF
         IFS=","; declare -a modules=($SLAPD_ADDITIONAL_MODULES); unset IFS
 
         for module in "${modules[@]}"; do
-             module_file="/etc/ldap/modules/${module}.ldif"
-
-             if [ "$module" == 'ppolicy' ]; then
-                 SLAPD_PPOLICY_DN_PREFIX="${SLAPD_PPOLICY_DN_PREFIX:-cn=default,ou=policies}"
-
-                 sed -i "s/\(olcPPolicyDefault: \)PPOLICY_DN/\1${SLAPD_PPOLICY_DN_PREFIX}$dc_string/g" $module_file
-             fi
-
-             slapadd -n0 -F /etc/ldap/slapd.d -l "$module_file"
+            module_file="/etc/ldap/modules/${module}.ldif"
+            if [ "$module" == 'ppolicy' ]; then
+#                SLAPD_PPOLICY_DN_PREFIX="${SLAPD_PPOLICY_DN_PREFIX:-cn=default,ou=policies}"
+                if [[ -n "$SLAPD_PPOLICY_DN_PREFIX" ]]; then
+                    sed -i "s/\(olcPPolicyDefault: \)PPOLICY_DN/\1${SLAPD_PPOLICY_DN_PREFIX}$dc_string/g" $module_file
+                else
+                    sed -i "/olcPPolicyDefault: PPOLICY_DN/d" $module_file
+                fi
+            fi
+            slapadd -n0 -F /etc/ldap/slapd.d -l "$module_file"
         done
     fi
 
